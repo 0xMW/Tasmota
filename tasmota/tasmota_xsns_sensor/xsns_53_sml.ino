@@ -454,7 +454,7 @@ struct METER_DESC {
   int32_t params;
   char prefix[SML_PREFIX_SIZE];
   int8_t trxpin;
-  uint8_t tsecs;
+  uint16_t tsecs;
   char *txmem;
   uint8_t index;
   uint8_t max_index;
@@ -573,7 +573,7 @@ int8_t index;
 
 struct SML_GLOBS {
   uint8_t sml_send_blocks;
-  uint8_t sml_100ms_cnt;
+  uint16_t sml_100ms_cnt = 0;
   uint8_t sml_desc_cnt;
   uint8_t meters_used;
   uint8_t maxvars;
@@ -4051,6 +4051,43 @@ char *SML_Get_Sequence(char *cp,uint32_t index) {
   return cp;
 }
 
+void SML_Check_Send(void) {  
+  char *cp;
+  for (uint32_t cnt = 0; cnt < sml_globs.meters_used; cnt++) {
+    if (meter_desc[cnt].trxpin >= 0 && (meter_desc[cnt].txmem || meter_desc[cnt].script_str)) {
+      if ((sml_globs.sml_100ms_cnt % meter_desc[cnt].tsecs == 0)) {
+        //AddLog(LOG_LEVEL_INFO, PSTR("100 ms>> 100ms_cnt: %d meter: %d meter tsec: %d"),
+        // sml_globs.sml_100ms_cnt,
+        // cnt,
+        // meter_desc[cnt].tsecs);        
+        // check for scriptsync extra output
+        if (meter_desc[cnt].script_str) {
+          cp = meter_desc[cnt].script_str;
+          meter_desc[cnt].script_str = 0;
+        } else {
+          //AddLog(LOG_LEVEL_INFO, PSTR("100 ms>> 2"),cp);
+          if (meter_desc[cnt].max_index > 1) {
+            meter_desc[cnt].index++;
+            if (meter_desc[cnt].index >= meter_desc[cnt].max_index) {
+              meter_desc[cnt].index = 0;
+            }
+            cp = SML_Get_Sequence(meter_desc[cnt].txmem, meter_desc[cnt].index);
+            //SML_Send_Seq(cnt,cp);
+          } else {
+            cp = meter_desc[cnt].txmem;
+            //SML_Send_Seq(cnt,cp);
+          }
+        }
+        //AddLog(LOG_LEVEL_INFO, PSTR(">> %s"),cp);
+        SML_Send_Seq(cnt,cp);
+      }
+    }
+  }
+  
+  sml_globs.sml_100ms_cnt++;
+} 
+
+/*
 void SML_Check_Send(void) {
   sml_globs.sml_100ms_cnt++;
   char *cp;
@@ -4095,6 +4132,7 @@ void SML_Check_Send(void) {
     }
   }
 }
+*/
 
 void sml_hex_asci(uint32_t mindex, char *tpowstr) {
   char *cp = meter_desc[mindex].meter_id;
